@@ -5,14 +5,11 @@
 #include <sys/time.h>
 #include <list>
 
-
-int WW = 800; //window width
-int WH = 700; //window height
+int WW = 1100; // window width
+int WH = 900; // window height
 Window myWindow;
 Display *ourDisplay;
 int s;
-
-
 
 class Brick
 {
@@ -24,25 +21,23 @@ class Brick
     int width, height;
 
 public:
-    Brick(Display *d, Window w, int s, int x , int y)
-    : d(d), w(w), s(s), width(100), height(40), x(x), y(y) {};
+    Brick(Display *d, Window w, int s, int x , int y, int width, int height)
+    : d(d), w(w), s(s), x(x), y(y), width(width), height(height) {};
 
     void Draw() const
     {
         XFillRectangle(d, w, DefaultGC(d,s), x, y, width, height);
     };
 
-    bool CheckCollision(int& ball_x, int& ball_y, int& moveX, int& moveY)
+    bool CheckCollision(int& ball_x, int& ball_y, int& moveX, int& moveY, int ball_diameter)
     {
-        int x_center = ball_x + 16/2;
-        int y_center = ball_y + 16/2;
 
-        if (ball_x >= x - 16 /*ball width*/ && ball_x <= x+width)
+        if (ball_x >= x - ball_diameter && ball_x <= x+width)
         {
-            if (ball_y >= y -16 && ball_y <= y+height) // попали в блок
+            if (ball_y >= y - ball_diameter && ball_y <= y+height)
             {
-                //меняем направление мяча
-                if (ball_y + 16 - moveY <= y && y <= ball_y + 16) moveY *= -1;
+                // Changing the Ball`s direction
+                if (ball_y + ball_diameter - moveY <= y && y <= ball_y + 16) moveY *= -1;
                 else if (ball_y - moveY >= y + height && y + height >= ball_y) moveY *= -1;
                 else if (ball_x + 16 - moveX <= x && x <= ball_x + 16) moveX *= -1;
                 else if (ball_x - moveX >= x + width  && x + width  >= ball_x) moveX *=-1;
@@ -63,11 +58,11 @@ class Ball
     int      s;
     int x;
     int y;
-    int width, height;
+    int diameter; 
 
 public:
-    Ball(Display *d, Window w, int s)
-    : d(d), w(w), s(s), width(16), height(16)
+    Ball(Display *d, Window w, int s, int diameter)
+    : d(d), w(w), s(s), diameter(diameter)
     {
         x = WW / 2 +20;
         y = WH-120;
@@ -77,7 +72,7 @@ public:
 
     void Draw() const
     {
-        XFillArc(d, w, DefaultGC(d,s), x, y, width, height, 0, 360*64);
+        XFillArc(d, w, DefaultGC(d,s), x, y, diameter, diameter, 0, 360*64);
     }
 };
 
@@ -134,7 +129,7 @@ public:
 
 class Field
 {
-    friend class Timer;
+
     Display *d;
     Window   w;
     int      s;
@@ -143,11 +138,11 @@ class Field
     std::list<Brick> Bricks;
     
 
-    //Ball params
-    int moveX = 3, moveY = -3;
+    // Ball speed parameters
+    int moveX = 3, moveY = -5;
 
-    //Platform params
-    int delta = 3;
+    // Platform speed parameterss
+    int delta = 4;
 
     
 public:
@@ -164,53 +159,51 @@ public:
     void movePlatform()
     {
         if (p.x + (p.coeff*delta) >= 1 && (p.x+p.width) + (p.coeff*delta) <= WW -1) 
-        {
             p.x += p.coeff*delta;
-        }
         else p.coeff = 0;
 
     }
 
     void CheckPlatformCollision()
     {
-        if ((b.y +b.height) >= p.y && b.y <= p.y + p.height) //на уровне платформы
+        if ((b.y +b.diameter) >= p.y && b.y <= p.y + p.height)
         {
-            if (b.x +8  >= p.x && b.x + 8 <= p.x + p.width) // в пределах ширины платформы
+            if (b.x  >= p.x - b.diameter && b.x <= p.x + p.width) 
             {
 
-                switch (abs(p.coeff))
+                switch (p.coeff)
                 {
                 case 0:
                     moveY *= -1;
                     break;
                 case 1:
-                    if (moveX > 0)
-                    {
-                        moveX = 1;
-                        moveY = -4;
-                    }
-                    else if (moveX < 0)
-                    {
-                        moveX = -1;
-                        moveY = -4;
-                    }
-
+                        if (moveX > 0) moveX = 3;
+                        else if (moveX < 0) moveX = -2;
+                        moveY = -8 + abs(moveX);
                     break;
                 case 2:
-                    if (moveX > 0)
-                    {
-                        moveX = 3;
-                        moveY = -3;
-                    }
-                    else if (moveX < 0)
-                    {
-                        moveX = -3;
-                        moveY = -3;
-                    }
+
+                        if (moveX > 0) moveX = 4;
+                        else if (moveX < 0) moveX = -1;
+                        moveY = -8 + abs(moveX);
                     break;
+
+                case -1:
+
+                    if (moveX > 0) moveX = 2;
+                    else if (moveX < 0) moveX = -3;
+                    moveY = -8 + abs(moveX);
+                
+                case -2:
+                    if (moveX > 0) moveX =1;
+                    else if (moveX < 0) moveX = -4;
+                    moveY = -8 + abs(moveX);
+
                 default:
                     break;
             } 
+            b.y = p.y - b.diameter - 2; // Moving the Ball slightly away from the Platform to avoid incorrect collisions
+            
             } 
 
         }
@@ -218,11 +211,24 @@ public:
 
     bool CheckWallCollision()
     {
-        if (b.x <= 3) moveX = moveX * (-1); //левая стена 
-        else if (b.x + b.width >= WW-3) moveX = moveX * (-1); //правая стена
-        else if (b.y <= 3) moveY = moveY * (-1); //верхняя стена
+        if (b.x <= 3)
+        {
+            b.x = 4; // Moving the Ball slightly away from the wall to avoid incorrect collisions
+            moveX = moveX * (-1); // Left wall
+        } 
+        else if (b.x + b.diameter >= WW-3)
+        {
+            b.x = WW -3 - 16;
+            moveX = moveX * (-1); // Right wall
+        } 
+        else if (b.y <= 3)
+        {
+            moveY = moveY * (-1); // Top wall
+            b.y = 4;
 
-        else if (b.y + b.height >= WH-3) // нижняя стена. проигрыш
+        } 
+
+        else if (b.y + b.diameter >= WH-3) // Bottom wall -> failure
         {
             moveX = 0;
             moveY = 0;   
@@ -245,7 +251,7 @@ public:
         for (std::list<Brick>::iterator it=Bricks.begin(); it!= Bricks.end(); ++it)
         {
             Brick br = *it;
-            if (br.CheckCollision(b.x, b.y, moveX, moveY)) it =Bricks.erase(it);
+            if (br.CheckCollision(b.x, b.y, moveX, moveY, b.diameter)) it =Bricks.erase(it);
             if (Bricks.size()== 0) break;
         }
         if (Bricks.size() == 0) return 1;
@@ -309,8 +315,8 @@ int main()
     if ( ourDisplay == NULL) return 1;
 
 
-    int s=DefaultScreen(ourDisplay);          // Экран по-умолчанию
-    Window rootWindow=RootWindow(ourDisplay, s); // Корневое окно
+    int s=DefaultScreen(ourDisplay);        
+    Window rootWindow=RootWindow(ourDisplay, s); 
     unsigned long bgcolor=WhitePixel(ourDisplay, s); 
 
 
@@ -325,25 +331,35 @@ int main()
     XMapWindow(ourDisplay, myWindow);    
     XFlush(ourDisplay);
 
+    int ball_diameter = 16;
+    int brick_x = 20, brick_y = 20;
+    int brick_width = 90, brick_height = 25;
+
 
     Platform p(ourDisplay,myWindow,s);
-    Ball b(ourDisplay, myWindow,s);
+    Ball b(ourDisplay, myWindow,s, ball_diameter);
     std::list<Brick> Bricks;
-    int brick_x = 50, brick_y = 50;
 
  
-
-    for (int i = 0; i < 3; i++)
+    for (int row = 0; row < 6; row++)
     {
-        Bricks.push_back(Brick(ourDisplay, myWindow, s, brick_x, brick_y));
-        brick_x += 150;
+
+        while (brick_x + brick_width < WW-10)
+        {
+            Bricks.push_back(Brick(ourDisplay, myWindow, s, brick_x, brick_y, brick_width, brick_height));
+            brick_x += 130;
+        }
+        
+        brick_x = 20;
+        brick_y += 45;
+
     }
 
     Field f(ourDisplay,myWindow,s, p, b, Bricks);
     Timer t_ball(&Field::moveBall, &f);
-    Timer t_pl(&Field::movePlatform, &f);
+    Timer t_platform(&Field::movePlatform, &f);
     t_ball.StartTimer(1);
-    t_pl.StartTimer(1);
+    t_platform.StartTimer(1);
 
 
     while (1)
@@ -362,24 +378,21 @@ int main()
                 p.goRight();
             if (event.xkey.keycode == 113) 
                 p.goLeft();
-
         }
-
 
         if (event.type == Expose)
         {
+            if (t_ball.get_state())
+            {
+                t_ball.set_state();
+                t_ball.StartTimer(2000);
+            }
 
-        if (t_ball.get_state())
-        {
-            t_ball.set_state();
-            t_ball.StartTimer(5000);
-        }
-
-        if (t_pl.get_state())
-        {
-            t_pl.set_state();
-            t_pl.StartTimer(5000);
-        }
+            if (t_platform.get_state())
+            {
+                t_platform.set_state();
+                t_platform.StartTimer(2000);
+            }
 
             f.CheckPlatformCollision();
             f.CheckBricksCollision();
@@ -392,9 +405,8 @@ int main()
 
         if(!XPending(ourDisplay))
         {
-        
         XSendEvent(ourDisplay, myWindow, False, ExposureMask, (XEvent *) &xe);
-        usleep(1000);
+        usleep(10000);
         }
 
         if (f.CheckWallCollision()) 
@@ -413,7 +425,6 @@ int main()
     }
 
     XDestroyWindow(ourDisplay, myWindow);
-
     XCloseDisplay(ourDisplay);
   
     return 0;
