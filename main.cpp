@@ -37,13 +37,15 @@ public:
         int x_center = ball_x + 16/2;
         int y_center = ball_y + 16/2;
 
-        if (ball_x >= x && ball_x <= x+width)
+        if (ball_x >= x - 16 /*ball width*/ && ball_x <= x+width)
         {
-            if (ball_y >= y && ball_y <= y+height) // попали в блок
+            if (ball_y >= y -16 && ball_y <= y+height) // попали в блок
             {
                 //меняем направление мяча
-                if (x_center > x + 25 && x_center < x+width - 25) moveY *= -1;
-                else moveX *= -1;
+                if (ball_y + 16 - moveY <= y && y <= ball_y + 16) moveY *= -1;
+                else if (ball_y - moveY >= y + height && y + height >= ball_y) moveY *= -1;
+                else if (ball_x + 16 - moveX <= x && x <= ball_x + 16) moveX *= -1;
+                else if (ball_x - moveX >= x + width  && x + width  >= ball_x) moveX *=-1;
                 return 1;
             }
         }
@@ -126,12 +128,6 @@ public:
         return 1;
         
     }
-
-    int getCoeff() const
-    {
-        return coeff;
-    } 
-
 
     ~Platform(){};
 };
