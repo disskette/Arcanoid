@@ -89,7 +89,7 @@ class Platform
     int x;
     int y;
     int width, height;
-    int delta = 0;
+    int coeff = 0;
 
 public:
     Platform(Display *d, Window w, int s)
@@ -104,25 +104,35 @@ public:
         XFillRectangle(d, w, DefaultGC(d,s), x, y, width, height);
     };
 
-    bool goRight()
+    bool goRight(const int& d = 1)
     {
-        if ((x+20+width) < (WW)){
-            delta = 20;
+        if (coeff + d <=2)
+        {
+            coeff += d;
             return 0;
-        }
+        } 
+
         return 1;
         
     }
 
-    bool goLeft()
+    bool goLeft(const int& d = -1)
     {
-        if ((x) > (20)){
-            delta = -20;
+        if (coeff + d >= -2)
+        {
+            coeff += d;
             return 0;
-        }
+        } 
         return 1;
         
     }
+
+    int getCoeff() const
+    {
+        return coeff;
+    } 
+
+
     ~Platform(){};
 };
 
@@ -138,7 +148,10 @@ class Field
     
 
     //Ball params
-    int moveX = 2, moveY = -3;
+    int moveX = 3, moveY = -3;
+
+    //Platform params
+    int delta = 3;
 
     
 public:
@@ -154,15 +167,56 @@ public:
 
     void movePlatform()
     {
-        if (((p.x+20+p.width) < (WW) || ((p.x) > (20)))) p.x += p.delta;
-        p.delta = 0;
+        if (p.x + (p.coeff*delta) >= 1 && (p.x+p.width) + (p.coeff*delta) <= WW -1) 
+        {
+            p.x += p.coeff*delta;
+        }
+        else p.coeff = 0;
+
     }
 
     void CheckPlatformCollision()
     {
         if ((b.y +b.height) >= p.y && b.y <= p.y + p.height) //на уровне платформы
         {
-            if (b.x +8  >= p.x && b.x + 8 <= p.x + p.width) moveY = moveY * (-1); // в пределах ширины платформы
+            if (b.x +8  >= p.x && b.x + 8 <= p.x + p.width) // в пределах ширины платформы
+            {
+
+                switch (abs(p.coeff))
+                {
+                case 0:
+                    moveY *= -1;
+                    break;
+                case 1:
+                    if (moveX > 0)
+                    {
+                        moveX = 1;
+                        moveY = -4;
+                    }
+                    else if (moveX < 0)
+                    {
+                        moveX = -1;
+                        moveY = -4;
+                    }
+
+                    break;
+                case 2:
+                    if (moveX > 0)
+                    {
+                        moveX = 3;
+                        moveY = -3;
+                    }
+                    else if (moveX < 0)
+                    {
+                        moveX = -3;
+                        moveY = -3;
+                    }
+                    break;
+                default:
+                    break;
+            } 
+            } 
+
         }
     }
 
@@ -213,14 +267,9 @@ class Timer {
     Field* f;
     
   public:
-    // Timer()
-    //   : term(0), func(0), stop(false), x(0)
-    // {
-    //     x =0;
-    //     y =0;
-
-
-    // };
+    Timer()
+      : term(0), func(0), stop(false)
+    {};
 
     Timer(void (Field::*func)(), Field* f)
     : term(0), func(func), stop(false), f(f)
@@ -251,15 +300,9 @@ class Timer {
       }
     }
 
-    bool get_state()
-    {
-        return stop;
-    }
+    bool get_state() const { return stop; }
 
-    void set_state()
-    {
-        stop = false;
-    }
+    void set_state() { stop = false; }
 };
 
 
@@ -304,12 +347,11 @@ int main()
     Timer t_ball(&Field::moveBall, &f);
     Timer t_pl(&Field::movePlatform, &f);
     t_ball.StartTimer(1);
+    t_pl.StartTimer(1);
 
 
     while (1)
     {
-
-    
 
         XExposeEvent xe = {Expose, 0, 1, ourDisplay, myWindow, 0, 0, 
             WW, WH,
@@ -320,13 +362,11 @@ int main()
 
         if (event.type == KeyPress)
         {
-            if (event.xkey.keycode == 114) p.goRight();
-            if (event.xkey.keycode == 113) p.goLeft();
-        //             if (t_pl.get_state())
-        // {
-        //     t_pl.set_state();
-        //     t_pl.StartTimer(1);
-        // }
+            if (event.xkey.keycode == 114) 
+                p.goRight();
+            if (event.xkey.keycode == 113) 
+                p.goLeft();
+
         }
 
 
@@ -336,12 +376,15 @@ int main()
         if (t_ball.get_state())
         {
             t_ball.set_state();
-            t_ball.StartTimer(20000);
+            t_ball.StartTimer(5000);
         }
 
-         
-            //f.moveBall();
-            f.movePlatform();
+        if (t_pl.get_state())
+        {
+            t_pl.set_state();
+            t_pl.StartTimer(5000);
+        }
+
             f.CheckPlatformCollision();
             f.CheckBricksCollision();
         }
@@ -358,10 +401,6 @@ int main()
         usleep(1000);
         }
 
-
-
-
-
         if (f.CheckWallCollision()) 
         {
             std::cout << "Game Over";
@@ -373,8 +412,6 @@ int main()
             std::cout << "You won!";
             break;
         }
-
-
 
         XFlush(ourDisplay);
     }
